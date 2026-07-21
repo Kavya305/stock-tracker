@@ -1,6 +1,15 @@
 "use client";
 import { useState } from "react";
-import { AnalysisResponse } from "./portfolio-types";
+import { AnalysisResponse, HoldingPeriod } from "./portfolio-types";
+import { useSortable, SortTh } from "./sortable";
+
+const PERF_COLS: Record<string, (r: HoldingPeriod) => unknown> = {
+  name: (r) => r.name,
+  priceReturn: (r) => r.priceReturn,
+  vsBenchmark: (r) => r.vsBenchmark,
+  contribution: (r) => r.contribution,
+  weight: (r) => r.weight,
+};
 
 const pct = (n: number | null) =>
   n == null ? "—" : `${n >= 0 ? "+" : ""}${(n * 100).toFixed(2)}%`;
@@ -13,6 +22,9 @@ export default function Performance({ data }: { data: AnalysisResponse }) {
   const [active, setActive] = useState(data.periods[0]?.label ?? "3M");
   const rows = data.breakdown[active] ?? [];
   const period = data.periods.find((p) => p.label === active);
+  const { sorted, sortKey, asc, toggle } = useSortable(rows, PERF_COLS, {
+    key: "contribution",
+  });
 
   return (
     <div>
@@ -81,17 +93,26 @@ export default function Performance({ data }: { data: AnalysisResponse }) {
           <table className="w-full text-sm">
             <thead className="bg-gray-900 text-gray-400">
               <tr>
-                {["Stock", "Price return", "vs Nifty 50", "Contribution ₹", "Weight now"].map(
-                  (h) => (
-                    <th key={h} className="px-3 py-2 text-left whitespace-nowrap">
-                      {h}
-                    </th>
-                  )
-                )}
+                {[
+                  ["Stock", "name"],
+                  ["Price return", "priceReturn"],
+                  ["vs Nifty 50", "vsBenchmark"],
+                  ["Contribution ₹", "contribution"],
+                  ["Weight now", "weight"],
+                ].map(([label, col]) => (
+                  <SortTh
+                    key={col}
+                    label={label}
+                    col={col}
+                    sortKey={sortKey}
+                    asc={asc}
+                    onSort={toggle}
+                  />
+                ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {sorted.map((r) => (
                 <tr key={r.symbol} className="border-t border-gray-800">
                   <td className="px-3 py-2">
                     <div className="font-medium">{r.name}</div>

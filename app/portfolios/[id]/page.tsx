@@ -8,6 +8,7 @@ import Review from "../../components/Review";
 import NewsResults from "../../components/NewsResults";
 import Quarterly from "../../components/Quarterly";
 import StockPicker from "../../components/StockPicker";
+import { useSortable, SortTh } from "../../components/sortable";
 import { SignalBadge, RatingStars } from "../../components/StockTable";
 import {
   PortfolioDetail,
@@ -17,6 +18,7 @@ import {
   QuarterInfo,
   QuarterReport,
   Txn,
+  Holding,
 } from "../../components/portfolio-types";
 import { UNIVERSE } from "@/lib/universe";
 import { apiFetch } from "../../lib-client";
@@ -387,8 +389,29 @@ function Field({
   );
 }
 
+const HOLDING_COLS: Record<string, (h: Holding) => unknown> = {
+  name: (h) => h.name,
+  units: (h) => h.balanceUnits,
+  firstBuy: (h) => h.firstBuy,
+  invested: (h) => h.invested,
+  price: (h) => h.currentPrice,
+  value: (h) => h.currentValue,
+  pl: (h) => (h.currentValue != null ? h.currentValue - h.invested : null),
+  plPct: (h) =>
+    h.currentValue != null && h.invested > 0
+      ? h.currentValue / h.invested - 1
+      : null,
+  xirr: (h) => h.xirr,
+  rating: (h) => h.rating,
+  signal: (h) => h.signal,
+};
+
 function HoldingsTable({ data }: { data: PortfolioDetail }) {
   const held = data.holdings.filter((h) => h.balanceUnits > 0.0000001);
+  const { sorted, sortKey, asc, toggle } = useSortable(held, HOLDING_COLS, {
+    key: "value",
+  });
+
   if (held.length === 0)
     return <p className="text-gray-500">No open holdings. Add a BUY transaction.</p>;
   return (
@@ -396,17 +419,32 @@ function HoldingsTable({ data }: { data: PortfolioDetail }) {
       <table className="w-full text-sm">
         <thead className="bg-gray-900 text-gray-400">
           <tr>
-            {["Stock", "Units", "First Buy", "Invested", "Cur. Price", "Cur. Value", "P/L", "XIRR", "Rating", "Signal"].map(
-              (h) => (
-                <th key={h} className="px-3 py-2 text-left whitespace-nowrap">
-                  {h}
-                </th>
-              )
-            )}
+            {[
+              ["Stock", "name"],
+              ["Units", "units"],
+              ["First Buy", "firstBuy"],
+              ["Invested", "invested"],
+              ["Cur. Price", "price"],
+              ["Cur. Value", "value"],
+              ["P/L", "pl"],
+              ["P/L %", "plPct"],
+              ["XIRR", "xirr"],
+              ["Rating", "rating"],
+              ["Signal", "signal"],
+            ].map(([label, col]) => (
+              <SortTh
+                key={col}
+                label={label}
+                col={col}
+                sortKey={sortKey}
+                asc={asc}
+                onSort={toggle}
+              />
+            ))}
           </tr>
         </thead>
         <tbody>
-          {held.map((h) => {
+          {sorted.map((h) => {
             const pl =
               h.currentValue != null ? h.currentValue - h.invested : null;
             return (
@@ -433,6 +471,15 @@ function HoldingsTable({ data }: { data: PortfolioDetail }) {
                 </td>
                 <td
                   className={`px-3 py-2 ${
+                    pl == null ? "" : pl >= 0 ? "text-emerald-400" : "text-red-400"
+                  }`}
+                >
+                  {pl == null || h.invested <= 0
+                    ? "—"
+                    : `${pl >= 0 ? "+" : ""}${((h.currentValue! / h.invested - 1) * 100).toFixed(1)}%`}
+                </td>
+                <td
+                  className={`px-3 py-2 ${
                     (h.xirr ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"
                   }`}
                 >
@@ -453,6 +500,15 @@ function HoldingsTable({ data }: { data: PortfolioDetail }) {
   );
 }
 
+const TXN_COLS: Record<string, (t: Txn) => unknown> = {
+  date: (t) => t.date,
+  symbol: (t) => t.symbol,
+  type: (t) => t.type,
+  units: (t) => t.units,
+  price: (t) => t.price,
+  value: (t) => t.units * t.price,
+};
+
 function TransactionsTable({
   data,
   onDelete,
@@ -466,6 +522,11 @@ function TransactionsTable({
   ) => Promise<boolean>;
 }) {
   const [editingId, setEditingId] = useState<number | null>(null);
+  const { sorted, sortKey, asc, toggle } = useSortable(
+    data.transactions,
+    TXN_COLS,
+    { key: "date" }
+  );
 
   if (data.transactions.length === 0)
     return <p className="text-gray-500">No transactions yet.</p>;
@@ -474,15 +535,28 @@ function TransactionsTable({
       <table className="w-full text-sm">
         <thead className="bg-gray-900 text-gray-400">
           <tr>
-            {["Date", "Stock", "Type", "Units", "Price", "Value", ""].map((h) => (
-              <th key={h} className="px-3 py-2 text-left whitespace-nowrap">
-                {h}
-              </th>
+            {[
+              ["Date", "date"],
+              ["Stock", "symbol"],
+              ["Type", "type"],
+              ["Units", "units"],
+              ["Price", "price"],
+              ["Value", "value"],
+            ].map(([label, col]) => (
+              <SortTh
+                key={col}
+                label={label}
+                col={col}
+                sortKey={sortKey}
+                asc={asc}
+                onSort={toggle}
+              />
             ))}
+            <th className="px-3 py-2" />
           </tr>
         </thead>
         <tbody>
-          {data.transactions.map((t) =>
+          {sorted.map((t) =>
             editingId === t.id ? (
               <EditRow
                 key={t.id}
