@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: ["@libsql/client", "yahoo-finance2"],
 };
 
 export default nextConfig;

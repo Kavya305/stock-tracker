@@ -1,65 +1,135 @@
-import Image from "next/image";
+"use client";
+import { useEffect, useState, useCallback } from "react";
+import StockTable, { Stock } from "./components/StockTable";
+import { apiFetch } from "./lib-client";
+import { INDICES, IndexName } from "@/lib/universe";
+
+interface Watchlist {
+  id: number;
+  name: string;
+  symbols: string[];
+}
+
+const INDEX_SIZE: Record<string, number> = {
+  "Nifty 50": 50,
+  "Nifty Next 50": 50,
+  "Nifty Midcap 150": 150,
+  "Nifty Smallcap 250": 250,
+  "Nifty Microcap 250": 251,
+};
 
 export default function Home() {
+  const [stocks, setStocks] = useState<Stock[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [index, setIndex] = useState<IndexName>("Nifty 50");
+
+  const load = useCallback(async (idx: IndexName) => {
+    setLoading(true);
+    const [s, w] = await Promise.all([
+      apiFetch(`/api/stocks?index=${encodeURIComponent(idx)}`).then((r) =>
+        r.json()
+      ),
+      apiFetch("/api/watchlists").then((r) => r.json()),
+    ]);
+    setStocks(s);
+    setWatchlists(w);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    load(index);
+  }, [load, index]);
+
+  const addToWatchlist = async (wlId: number, symbol: string) => {
+    await apiFetch(`/api/watchlists/${wlId}`, {
+      method: "PUT",
+      body: JSON.stringify({ add: symbol }),
+    });
+    setMenuFor(null);
+    load(index);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div>
+      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold">Universal Stock List</h1>
+          <p className="text-sm text-gray-400">
+            {index} · {INDEX_SIZE[index]} stocks · live quotes & fundamentals
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        <div className="flex items-center gap-2">
+          <select
+            value={index}
+            onChange={(e) => setIndex(e.target.value as IndexName)}
+            className="input"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            {INDICES.map((i) => (
+              <option key={i} value={i}>
+                {i} ({INDEX_SIZE[i]})
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => load(index)}
+            className="text-sm rounded bg-gray-800 hover:bg-gray-700 px-3 py-1.5"
           >
-            Documentation
-          </a>
+            ↻ Refresh
+          </button>
         </div>
-      </main>
+      </div>
+      {(index === "Nifty Smallcap 250" || index === "Nifty Microcap 250") &&
+        loading && (
+          <p className="mb-3 text-xs text-amber-400/80">
+            Loading {INDEX_SIZE[index]} stocks with fundamentals — the first load
+            of a large index can take a while; it's cached afterwards.
+          </p>
+        )}
+
+      {loading ? (
+        <div className="py-20 text-center text-gray-500">Loading market data…</div>
+      ) : (
+        <div className="relative">
+          <StockTable
+            stocks={stocks}
+            actionLabel="+ Watchlist"
+            onAction={(symbol) =>
+              setMenuFor(menuFor === symbol ? null : symbol)
+            }
+          />
+          {menuFor && (
+            <div
+              className="fixed inset-0 z-20"
+              onClick={() => setMenuFor(null)}
+            >
+              <div
+                className="absolute right-8 top-40 w-56 rounded-lg border border-gray-700 bg-gray-900 p-2 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="text-xs text-gray-400 px-2 pb-1">
+                  Add {menuFor.replace(".NS", "")} to:
+                </div>
+                {watchlists.length === 0 && (
+                  <div className="text-xs text-gray-500 px-2 py-2">
+                    No watchlists yet. Create one on the Watchlists page.
+                  </div>
+                )}
+                {watchlists.map((w) => (
+                  <button
+                    key={w.id}
+                    onClick={() => addToWatchlist(w.id, menuFor)}
+                    className="block w-full text-left text-sm rounded px-2 py-1.5 hover:bg-gray-800"
+                  >
+                    {w.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
