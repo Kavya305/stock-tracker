@@ -28,6 +28,7 @@ const INDEX_ABBR: Record<string, string> = {
   "Nifty Midcap 150": "Mid150",
   "Nifty Smallcap 250": "Small250",
   "Nifty Microcap 250": "Micro250",
+  Custom: "Custom",
 };
 
 export function SignalBadge({ signal }: { signal: Stock["signal"] }) {

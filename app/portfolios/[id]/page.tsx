@@ -7,6 +7,7 @@ import Performance from "../../components/Performance";
 import Review from "../../components/Review";
 import NewsResults from "../../components/NewsResults";
 import Quarterly from "../../components/Quarterly";
+import StockPicker from "../../components/StockPicker";
 import { SignalBadge, RatingStars } from "../../components/StockTable";
 import {
   PortfolioDetail,
@@ -15,8 +16,9 @@ import {
   NewsItem,
   QuarterInfo,
   QuarterReport,
+  Txn,
 } from "../../components/portfolio-types";
-import { UNIVERSE, INDICES } from "@/lib/universe";
+import { UNIVERSE } from "@/lib/universe";
 import { apiFetch } from "../../lib-client";
 
 type Tab =
@@ -152,6 +154,26 @@ export default function PortfolioDetailPage() {
     }
   };
 
+  const saveTxn = async (
+    txnId: number,
+    fields: { symbol: string; type: "BUY" | "SELL"; date: string; units: number; price: number }
+  ) => {
+    if (!(fields.units > 0) || !(fields.price > 0)) {
+      alert("Enter valid units and price.");
+      return false;
+    }
+    const res = await apiFetch(`/api/portfolios/${id}/transactions`, {
+      method: "PUT",
+      body: JSON.stringify({ txnId, ...fields }),
+    });
+    if (!res.ok) {
+      alert((await res.json()).error ?? "Could not save");
+      return false;
+    }
+    load();
+    return true;
+  };
+
   const delTxn = async (txnId: number) => {
     await apiFetch(`/api/portfolios/${id}/transactions`, {
       method: "DELETE",
@@ -202,21 +224,7 @@ export default function PortfolioDetailPage() {
         <h3 className="font-semibold mb-3 text-sm">Add Transaction</h3>
         <div className="flex flex-wrap items-end gap-3">
           <Field label="Stock">
-            <select
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value)}
-              className="input w-52"
-            >
-              {INDICES.map((idx) => (
-                <optgroup key={idx} label={idx}>
-                  {UNIVERSE.filter((s) => s.index === idx).map((s) => (
-                    <option key={s.symbol} value={s.symbol}>
-                      {s.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+            <StockPicker value={symbol} onChange={setSymbol} />
           </Field>
           <Field label="Type">
             <select
@@ -283,7 +291,7 @@ export default function PortfolioDetailPage() {
       {tab === "holdings" && <HoldingsTable data={data} />}
       {tab === "reports" && <Reports holdings={data.holdings} />}
       {tab === "transactions" && (
-        <TransactionsTable data={data} onDelete={delTxn} />
+        <TransactionsTable data={data} onDelete={delTxn} onSave={saveTxn} />
       )}
 
       {tab === "performance" &&
@@ -448,10 +456,17 @@ function HoldingsTable({ data }: { data: PortfolioDetail }) {
 function TransactionsTable({
   data,
   onDelete,
+  onSave,
 }: {
   data: PortfolioDetail;
   onDelete: (id: number) => void;
+  onSave: (
+    id: number,
+    fields: { symbol: string; type: "BUY" | "SELL"; date: string; units: number; price: number }
+  ) => Promise<boolean>;
 }) {
+  const [editingId, setEditingId] = useState<number | null>(null);
+
   if (data.transactions.length === 0)
     return <p className="text-gray-500">No transactions yet.</p>;
   return (
@@ -467,36 +482,143 @@ function TransactionsTable({
           </tr>
         </thead>
         <tbody>
-          {data.transactions.map((t) => (
-            <tr key={t.id} className="border-t border-gray-800">
-              <td className="px-3 py-2 text-gray-400">{t.date}</td>
-              <td className="px-3 py-2">{t.symbol.replace(".NS", "")}</td>
-              <td className="px-3 py-2">
-                <span
-                  className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                    t.type === "BUY"
-                      ? "bg-emerald-900 text-emerald-300"
-                      : "bg-red-900 text-red-300"
-                  }`}
-                >
-                  {t.type}
-                </span>
-              </td>
-              <td className="px-3 py-2">{fmt(t.units, 4)}</td>
-              <td className="px-3 py-2">₹{fmt(t.price)}</td>
-              <td className="px-3 py-2">₹{fmt(t.units * t.price, 0)}</td>
-              <td className="px-3 py-2">
-                <button
-                  onClick={() => onDelete(t.id)}
-                  className="text-xs text-gray-500 hover:text-red-400"
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
+          {data.transactions.map((t) =>
+            editingId === t.id ? (
+              <EditRow
+                key={t.id}
+                txn={t}
+                onCancel={() => setEditingId(null)}
+                onSave={async (fields) => {
+                  const ok = await onSave(t.id, fields);
+                  if (ok) setEditingId(null);
+                }}
+              />
+            ) : (
+              <tr key={t.id} className="border-t border-gray-800">
+                <td className="px-3 py-2 text-gray-400">{t.date}</td>
+                <td className="px-3 py-2">{t.symbol.replace(".NS", "")}</td>
+                <td className="px-3 py-2">
+                  <span
+                    className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                      t.type === "BUY"
+                        ? "bg-emerald-900 text-emerald-300"
+                        : "bg-red-900 text-red-300"
+                    }`}
+                  >
+                    {t.type}
+                  </span>
+                </td>
+                <td className="px-3 py-2">{fmt(t.units, 4)}</td>
+                <td className="px-3 py-2">₹{fmt(t.price)}</td>
+                <td className="px-3 py-2">₹{fmt(t.units * t.price, 0)}</td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <button
+                    onClick={() => setEditingId(t.id)}
+                    className="text-xs text-gray-500 hover:text-emerald-400 mr-3"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => onDelete(t.id)}
+                    className="text-xs text-gray-500 hover:text-red-400"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            )
+          )}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function EditRow({
+  txn,
+  onSave,
+  onCancel,
+}: {
+  txn: Txn;
+  onSave: (fields: {
+    symbol: string;
+    type: "BUY" | "SELL";
+    date: string;
+    units: number;
+    price: number;
+  }) => void;
+  onCancel: () => void;
+}) {
+  const [symbol, setSymbol] = useState(txn.symbol);
+  const [type, setType] = useState<"BUY" | "SELL">(txn.type);
+  const [date, setDate] = useState(txn.date);
+  const [units, setUnits] = useState(String(txn.units));
+  const [price, setPrice] = useState(String(txn.price));
+
+  return (
+    <tr className="border-t border-emerald-800 bg-emerald-950/20 align-top">
+      <td className="px-3 py-2">
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="input w-36"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <StockPicker value={symbol} onChange={setSymbol} />
+      </td>
+      <td className="px-3 py-2">
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value as "BUY" | "SELL")}
+          className="input w-24"
+        >
+          <option value="BUY">BUY</option>
+          <option value="SELL">SELL</option>
+        </select>
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="number"
+          value={units}
+          onChange={(e) => setUnits(e.target.value)}
+          className="input w-24"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="number"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          className="input w-28"
+        />
+      </td>
+      <td className="px-3 py-2 text-gray-500">
+        ₹{fmt(parseFloat(units) * parseFloat(price) || 0, 0)}
+      </td>
+      <td className="px-3 py-2 whitespace-nowrap">
+        <button
+          onClick={() =>
+            onSave({
+              symbol,
+              type,
+              date,
+              units: parseFloat(units),
+              price: parseFloat(price),
+            })
+          }
+          className="text-xs rounded bg-emerald-700 hover:bg-emerald-600 px-2 py-1 mr-2"
+        >
+          Save
+        </button>
+        <button
+          onClick={onCancel}
+          className="text-xs text-gray-400 hover:text-gray-200"
+        >
+          Cancel
+        </button>
+      </td>
+    </tr>
   );
 }

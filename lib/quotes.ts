@@ -1,5 +1,9 @@
 import YahooFinance from "yahoo-finance2";
 import { UNIVERSE, bySymbol, IndexName } from "./universe";
+import { getCustomMap } from "./custom";
+
+// Stocks the user added themselves sit outside the NSE index universe.
+export type StockIndex = IndexName | "Custom";
 
 const yahooFinance = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
@@ -7,7 +11,7 @@ export interface StockData {
   symbol: string;
   name: string;
   sector: string;
-  index: IndexName;
+  index: StockIndex;
   price: number | null;
   peg: number | null;
   pe: number | null;
@@ -127,6 +131,7 @@ async function fetchFundamentals(symbol: string) {
 
 export async function getStocks(symbols?: string[]): Promise<StockData[]> {
   const list = symbols ?? UNIVERSE.map((s) => s.symbol);
+  const custom = await getCustomMap();
   const fresh = list.filter((s) => {
     const hit = cache.get(s);
     return !hit || Date.now() - hit.at > QUOTE_TTL;
@@ -153,12 +158,13 @@ export async function getStocks(symbols?: string[]): Promise<StockData[]> {
       batch.forEach((symbol, j) => {
         const q = quoteMap.get(symbol);
         const meta = bySymbol.get(symbol);
+        const own = custom.get(symbol);
         const f = funds[j];
         const base = {
           symbol,
-          name: meta?.name ?? q?.shortName ?? symbol,
-          sector: meta?.sector ?? "Other",
-          index: meta?.index ?? "Nifty 50",
+          name: meta?.name ?? own?.name ?? q?.shortName ?? symbol,
+          sector: meta?.sector ?? own?.sector ?? "Other",
+          index: (meta?.index ?? "Custom") as StockIndex,
           price: q?.regularMarketPrice ?? null,
           pe: q?.trailingPE ?? null,
           peg: f.peg,

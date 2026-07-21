@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
 import { getStocks } from "@/lib/quotes";
 import { INDICES, IndexName, symbolsForIndex } from "@/lib/universe";
+import { listCustom } from "@/lib/custom";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const param = new URL(req.url).searchParams.get("index");
+
+  if (param === "Custom") {
+    const custom = await listCustom();
+    const stocks = custom.length
+      ? await getStocks(custom.map((c) => c.symbol))
+      : [];
+    return NextResponse.json(stocks);
+  }
+
   const index = (INDICES.includes(param as IndexName)
     ? param
     : "Nifty 50") as IndexName;

@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import StockTable, { Stock } from "./components/StockTable";
 import { apiFetch } from "./lib-client";
-import { INDICES, IndexName } from "@/lib/universe";
+import { INDICES } from "@/lib/universe";
 
 interface Watchlist {
   id: number;
@@ -18,14 +18,18 @@ const INDEX_SIZE: Record<string, number> = {
   "Nifty Microcap 250": 251,
 };
 
+// "Custom" holds stocks added by hand that aren't in any NSE index list.
+const VIEWS = [...INDICES, "Custom"] as const;
+type ViewName = (typeof VIEWS)[number];
+
 export default function Home() {
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
   const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
   const [menuFor, setMenuFor] = useState<string | null>(null);
-  const [index, setIndex] = useState<IndexName>("Nifty 50");
+  const [index, setIndex] = useState<ViewName>("Nifty 50");
 
-  const load = useCallback(async (idx: IndexName) => {
+  const load = useCallback(async (idx: ViewName) => {
     setLoading(true);
     const [s, w] = await Promise.all([
       apiFetch(`/api/stocks?index=${encodeURIComponent(idx)}`).then((r) =>
@@ -57,18 +61,18 @@ export default function Home() {
         <div>
           <h1 className="text-2xl font-bold">Universal Stock List</h1>
           <p className="text-sm text-gray-400">
-            {index} · {INDEX_SIZE[index]} stocks · live quotes & fundamentals
+            {index} · {INDEX_SIZE[index] ? `${INDEX_SIZE[index]} stocks · ` : ""}live quotes & fundamentals
           </p>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={index}
-            onChange={(e) => setIndex(e.target.value as IndexName)}
+            onChange={(e) => setIndex(e.target.value as ViewName)}
             className="input"
           >
-            {INDICES.map((i) => (
+            {VIEWS.map((i) => (
               <option key={i} value={i}>
-                {i} ({INDEX_SIZE[i]})
+                {i}{INDEX_SIZE[i] ? ` (${INDEX_SIZE[i]})` : ""}
               </option>
             ))}
           </select>
@@ -90,6 +94,12 @@ export default function Home() {
 
       {loading ? (
         <div className="py-20 text-center text-gray-500">Loading market data…</div>
+      ) : index === "Custom" && stocks.length === 0 ? (
+        <div className="py-16 text-center text-gray-500 text-sm">
+          No stocks added yet. Use{" "}
+          <span className="text-gray-300">Search any stock</span> when adding a
+          transaction in a portfolio — anything you add there shows up here.
+        </div>
       ) : (
         <div className="relative">
           <StockTable

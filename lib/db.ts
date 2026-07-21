@@ -48,6 +48,12 @@ async function init(): Promise<void> {
       units REAL NOT NULL,
       price REAL NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS custom_stocks (
+      symbol TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      sector TEXT NOT NULL DEFAULT 'Other',
+      added_at TEXT NOT NULL
+    );
   `);
 
   await migrate(db);
