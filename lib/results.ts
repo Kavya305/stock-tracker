@@ -1,10 +1,12 @@
 import YahooFinance from "yahoo-finance2";
 import { bySymbol } from "./universe";
+import { fiscalLabelFromPeriodEnd } from "./fiscal";
 
 const yahooFinance = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
 export interface QuarterResult {
-  period: string; // e.g. "2Q2026"
+  period: string; // Indian fiscal quarter, e.g. "Q1 FY27"
+  calendarPeriod: string; // what Yahoo calls it, e.g. "2Q2026"
   periodEndDate: string | null;
   reportedDate: string | null;
   epsActual: number | null;
@@ -65,9 +67,14 @@ async function fetchResults(symbol: string): Promise<CompanyResults> {
     quarters = eps.map((q) => {
       const f = finBy.get(String(q.date));
       const rec = q as unknown as Record<string, unknown>;
+      const periodEndDate = iso(rec.periodEndDate);
       return {
-        period: String(q.date),
-        periodEndDate: iso(rec.periodEndDate),
+        // Yahoo's label is the calendar quarter; Indian companies report on an
+        // Apr–Mar fiscal year, so show the fiscal quarter investors expect.
+        period:
+          fiscalLabelFromPeriodEnd(periodEndDate) ?? String(q.date),
+        calendarPeriod: String(q.date),
+        periodEndDate,
         reportedDate: iso(rec.reportedDate),
         epsActual: num(q.actual),
         epsEstimate: num(q.estimate),

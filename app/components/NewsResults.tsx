@@ -73,7 +73,14 @@ export default function NewsResults({
                     <tbody>
                       {r.quarters.map((q) => (
                         <tr key={q.period} className="border-t border-gray-800">
-                          <td className="px-3 py-2 font-medium">{q.period}</td>
+                          <td className="px-3 py-2">
+                            <div className="font-medium">{q.period}</div>
+                            {q.periodEndDate && (
+                              <div className="text-xs text-gray-500">
+                                quarter ended {q.periodEndDate}
+                              </div>
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-gray-400">
                             {q.reportedDate ?? "—"}
                           </td>

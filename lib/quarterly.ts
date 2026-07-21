@@ -8,6 +8,13 @@ import {
   indexOnOrAfter,
 } from "./analysis";
 import { getResults, CompanyResults } from "./results";
+import {
+  FiscalQuarter,
+  fiscalMonths,
+  fiscalLabelLong,
+  currentFiscalQuarter,
+  previousFiscalQuarter,
+} from "./fiscal";
 
 export interface QuarterInfo {
   year: number;
@@ -48,39 +55,38 @@ export interface QuarterReport {
   isPartial: boolean; // quarter still in progress
 }
 
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-export function makeQuarter(year: number, q: number): QuarterInfo {
-  const startMonth = (q - 1) * 3;
-  const start = new Date(Date.UTC(year, startMonth, 1));
-  const end = new Date(Date.UTC(year, startMonth + 3, 0)); // last day of quarter
+/**
+ * Quarters follow the Indian fiscal year (Apr–Mar), so `year` here is the
+ * financial year's ending year: Q1 FY27 = Apr–Jun 2026.
+ */
+export function makeQuarter(fyEnd: number, q: number): QuarterInfo {
+  const f: FiscalQuarter = { q: q as 1 | 2 | 3 | 4, fyEnd };
+  const { startMonth0, calYear } = fiscalMonths(f);
+  const start = new Date(Date.UTC(calYear, startMonth0, 1));
+  const end = new Date(Date.UTC(calYear, startMonth0 + 3, 0)); // last day
   return {
-    year,
+    year: fyEnd,
     q,
-    label: `Q${q} ${year} (${MONTH_NAMES[startMonth]}–${MONTH_NAMES[startMonth + 2]})`,
+    label: fiscalLabelLong(f),
     start: start.toISOString().slice(0, 10),
     end: end.toISOString().slice(0, 10),
   };
 }
 
 export function currentQuarter(): QuarterInfo {
-  const now = new Date();
-  return makeQuarter(now.getUTCFullYear(), Math.floor(now.getUTCMonth() / 3) + 1);
+  const f = currentFiscalQuarter();
+  return makeQuarter(f.fyEnd, f.q);
 }
 
 /** Quarters from the most recent back to the one containing the first trade. */
 export function listQuarters(firstTxnDate: string | null, max = 12): QuarterInfo[] {
   const out: QuarterInfo[] = [];
-  let { year, q } = currentQuarter();
+  let f = currentFiscalQuarter();
   for (let i = 0; i < max; i++) {
-    const info = makeQuarter(year, q);
+    const info = makeQuarter(f.fyEnd, f.q);
     out.push(info);
     if (firstTxnDate && info.start <= firstTxnDate) break;
-    q -= 1;
-    if (q === 0) {
-      q = 4;
-      year -= 1;
-    }
+    f = previousFiscalQuarter(f);
   }
   return out;
 }

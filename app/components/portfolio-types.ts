@@ -68,7 +68,8 @@ export interface AnalysisResponse {
 }
 
 export interface QuarterResultRow {
-  period: string;
+  period: string; // Indian fiscal quarter, e.g. "Q1 FY27"
+  calendarPeriod?: string;
   periodEndDate: string | null;
   reportedDate: string | null;
   epsActual: number | null;
