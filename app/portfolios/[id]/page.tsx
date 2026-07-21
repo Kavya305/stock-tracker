@@ -3,10 +3,40 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Reports from "../../components/Reports";
+import Performance from "../../components/Performance";
+import Review from "../../components/Review";
+import NewsResults from "../../components/NewsResults";
+import Quarterly from "../../components/Quarterly";
 import { SignalBadge, RatingStars } from "../../components/StockTable";
-import { PortfolioDetail } from "../../components/portfolio-types";
+import {
+  PortfolioDetail,
+  AnalysisResponse,
+  CompanyResults,
+  NewsItem,
+  QuarterInfo,
+  QuarterReport,
+} from "../../components/portfolio-types";
 import { UNIVERSE, INDICES } from "@/lib/universe";
 import { apiFetch } from "../../lib-client";
+
+type Tab =
+  | "holdings"
+  | "performance"
+  | "review"
+  | "news"
+  | "quarterly"
+  | "reports"
+  | "transactions";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "holdings", label: "Holdings" },
+  { id: "performance", label: "Performance" },
+  { id: "review", label: "Review" },
+  { id: "news", label: "News & Results" },
+  { id: "quarterly", label: "Quarterly" },
+  { id: "reports", label: "Allocation" },
+  { id: "transactions", label: "Transactions" },
+];
 
 const fmt = (n: number | null | undefined, d = 2) =>
   n == null ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: d });
@@ -18,9 +48,20 @@ export default function PortfolioDetailPage() {
   const id = params.id;
   const [data, setData] = useState<PortfolioDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"holdings" | "reports" | "transactions">(
-    "holdings"
-  );
+  const [tab, setTab] = useState<Tab>("holdings");
+
+  // Lazily-loaded tab data (these calls hit historical price / news APIs)
+  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [newsData, setNewsData] = useState<{
+    results: CompanyResults[];
+    news: NewsItem[];
+  } | null>(null);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [quarters, setQuarters] = useState<QuarterInfo[]>([]);
+  const [report, setReport] = useState<QuarterReport | null>(null);
+  const [quarterKey, setQuarterKey] = useState("");
+  const [quarterLoading, setQuarterLoading] = useState(false);
 
   // add-transaction form
   const [symbol, setSymbol] = useState(UNIVERSE[0].symbol);
@@ -34,11 +75,62 @@ export default function PortfolioDetailPage() {
     const d = await apiFetch(`/api/portfolios/${id}`).then((r) => r.json());
     setData(d);
     setLoading(false);
+    // Holdings may have changed — drop cached tab data so it refetches.
+    setAnalysis(null);
+    setNewsData(null);
+    setQuarters([]);
+    setReport(null);
   }, [id]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadQuarter = useCallback(
+    async (year?: number, q?: number) => {
+      setQuarterLoading(true);
+      const qs = year && q ? `?year=${year}&q=${q}` : "";
+      const d = await apiFetch(`/api/portfolios/${id}/quarterly${qs}`).then((r) =>
+        r.json()
+      );
+      setQuarters(d.quarters ?? []);
+      setReport(d.report ?? null);
+      if (d.report) setQuarterKey(`${d.report.quarter.year}-${d.report.quarter.q}`);
+      setQuarterLoading(false);
+    },
+    [id]
+  );
+
+  // Fetch each tab's data the first time it's opened.
+  useEffect(() => {
+    if ((tab === "performance" || tab === "review") && !analysis && !analysisLoading) {
+      setAnalysisLoading(true);
+      apiFetch(`/api/portfolios/${id}/analysis`)
+        .then((r) => r.json())
+        .then((d) => setAnalysis(d))
+        .finally(() => setAnalysisLoading(false));
+    }
+    if (tab === "news" && !newsData && !newsLoading) {
+      setNewsLoading(true);
+      apiFetch(`/api/portfolios/${id}/news`)
+        .then((r) => r.json())
+        .then((d) => setNewsData(d))
+        .finally(() => setNewsLoading(false));
+    }
+    if (tab === "quarterly" && quarters.length === 0 && !quarterLoading) {
+      loadQuarter();
+    }
+  }, [
+    tab,
+    id,
+    analysis,
+    analysisLoading,
+    newsData,
+    newsLoading,
+    quarters.length,
+    quarterLoading,
+    loadQuarter,
+  ]);
 
   const addTxn = async () => {
     const u = parseFloat(units),
@@ -172,18 +264,18 @@ export default function PortfolioDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-4 border-b border-gray-800">
-        {(["holdings", "reports", "transactions"] as const).map((t) => (
+      <div className="flex gap-1 mb-4 border-b border-gray-800 flex-wrap">
+        {TABS.map((t) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm capitalize -mb-px border-b-2 ${
-              tab === t
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-3.5 py-2 text-sm -mb-px border-b-2 whitespace-nowrap ${
+              tab === t.id
                 ? "border-emerald-500 text-emerald-400"
                 : "border-transparent text-gray-400 hover:text-gray-200"
             }`}
           >
-            {t}
+            {t.label}
           </button>
         ))}
       </div>
@@ -194,11 +286,62 @@ export default function PortfolioDetailPage() {
         <TransactionsTable data={data} onDelete={delTxn} />
       )}
 
+      {tab === "performance" &&
+        (analysisLoading ? (
+          <Loading text="Fetching price history and calculating returns…" />
+        ) : !analysis || analysis.empty ? (
+          <p className="text-gray-500 text-sm">
+            Add some transactions to see performance.
+          </p>
+        ) : (
+          <Performance data={analysis} />
+        ))}
+
+      {tab === "review" &&
+        (analysisLoading ? (
+          <Loading text="Analysing holdings and watchlists…" />
+        ) : !analysis || analysis.empty ? (
+          <p className="text-gray-500 text-sm">
+            Add some transactions to get review suggestions.
+          </p>
+        ) : (
+          <Review
+            reduce={analysis.suggestions.reduce}
+            add={analysis.suggestions.add}
+            watchlistCount={analysis.watchlistCount}
+          />
+        ))}
+
+      {tab === "news" &&
+        (newsLoading ? (
+          <Loading text="Fetching quarterly results and news…" />
+        ) : !newsData ? (
+          <p className="text-gray-500 text-sm">No data.</p>
+        ) : (
+          <NewsResults results={newsData.results} news={newsData.news} />
+        ))}
+
+      {tab === "quarterly" && (
+        <Quarterly
+          quarters={quarters}
+          report={report}
+          selected={quarterKey}
+          loading={quarterLoading}
+          onSelect={(y, q) => loadQuarter(y, q)}
+        />
+      )}
+
       <p className="mt-4 text-xs text-gray-500">
         Ratings, buy/sell signals and XIRR are informational indicators computed
         from public data — not investment advice.
       </p>
     </div>
+  );
+}
+
+function Loading({ text }: { text: string }) {
+  return (
+    <div className="py-16 text-center text-gray-500 text-sm">{text}</div>
   );
 }
 
