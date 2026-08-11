@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 import ProfileSwitcher from "./components/ProfileSwitcher";
+import AlertsNav from "./components/AlertsNav";
 import { auth, signOut } from "@/auth";
 
 export const metadata: Metadata = {
@@ -26,6 +27,7 @@ export default async function RootLayout({
               <Link href="/" className="text-sm hover:text-emerald-400">Stocks</Link>
               <Link href="/watchlists" className="text-sm hover:text-emerald-400">Watchlists</Link>
               <Link href="/portfolios" className="text-sm hover:text-emerald-400">Portfolios</Link>
+              <AlertsNav />
               <ProfileSwitcher />
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 hidden sm:inline">

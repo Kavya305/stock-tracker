@@ -54,6 +54,16 @@ async function init(): Promise<void> {
       sector TEXT NOT NULL DEFAULT 'Other',
       added_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS thresholds (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      profile_id INTEGER NOT NULL DEFAULT 1,
+      symbol TEXT NOT NULL,
+      buy_below REAL,
+      sell_above REAL,
+      note TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE (profile_id, symbol)
+    );
   `);
 
   await migrate(db);
