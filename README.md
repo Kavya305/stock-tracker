@@ -5,7 +5,7 @@ list, custom watchlists, portfolios with buy/sell tracking, and allocation repor
 
 Live market data comes from Yahoo Finance across ~750 NSE stocks (Nifty 50, Nifty
 Next 50, Nifty Midcap 150, Nifty Smallcap 250, Nifty Microcap 250). Data is stored
-in SQLite via libSQL — a local file (`stock.db`) in development, or Turso in
+in SQLite via libSQL - a local file (`stock.db`) in development, or Turso in
 production. Access is gated by Google sign-in restricted to an email allowlist.
 
 **Deploying privately for specific people:** see [DEPLOY.md](DEPLOY.md).
