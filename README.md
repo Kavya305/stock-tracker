@@ -45,7 +45,7 @@ Each portfolio computes, per holding and overall:
 - **Date of purchase** (first buy) and **date of sale** (last sell)
 - **Balance units** and **amount invested** (average-cost basis)
 - **Current value** from the live price and **unrealised P/L**
-- **XIRR** — money-weighted annualised return (per holding and portfolio-level)
+- **XIRR** - money-weighted annualised return (per holding and portfolio-level)
 - **AI-style rating** and **Buy / Sell signal**
 
 ### 4. Reports (Reports tab inside a portfolio)
@@ -56,18 +56,18 @@ Three donut charts by current value:
 
 ## How the derived metrics work
 
-- **5Y Avg PE** — 5-year average monthly price ÷ current trailing EPS (approximation,
+- **5Y Avg PE** - 5-year average monthly price ÷ current trailing EPS (approximation,
   since Yahoo doesn't expose a historical-average PE directly).
-- **ROCE** — approximated from return on assets (Yahoo doesn't expose ROCE directly);
+- **ROCE** - approximated from return on assets (Yahoo doesn't expose ROCE directly);
   marked with `*` in the UI.
-- **Rating (0–10)** — rule-based blend of ROE, PEG, and current PE vs. its 5Y average.
-- **Signal** — BUY/SELL/HOLD from the rating combined with proximity to the 52-week
+- **Rating (0–10)** - rule-based blend of ROE, PEG, and current PE vs. its 5Y average.
+- **Signal** - BUY/SELL/HOLD from the rating combined with proximity to the 52-week
   high/low.
-- **XIRR** — solved by bisection over the dated cash flows (buys negative, sells and
+- **XIRR** - solved by bisection over the dated cash flows (buys negative, sells and
   current market value positive).
 
 > These ratings, signals and XIRR figures are informational indicators computed from
-> public data — **not investment advice**. Some fields (notably PEG) are missing for
+> public data - **not investment advice**. Some fields (notably PEG) are missing for
 > stocks where Yahoo Finance doesn't publish them.
 
 ## Tech
